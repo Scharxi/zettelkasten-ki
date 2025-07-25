@@ -8,6 +8,7 @@ from langchain.schema import Document
 # --- Einstellungen ---
 zettelkasten_path = "/Users/lucas/Documents/Zettelkasten"  # Passe dies auf deinen Ordner an
 embedding_model = "multi-qa-MiniLM-L6-cos-v1"  # Kleines, schnelles Modell
+persist_directory = "/Users/lucas/Development/projects/python/zettelkasten-ki/db"
 
 print("Zettelkasten KI wird initialisiert...")
 
@@ -29,7 +30,7 @@ for i, md_file in enumerate(md_files, 1):
 # --- Schritt 2: Chunking der Texte ---
 print("Teile Texte in Chunks auf...")
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000, chunk_overlap=200, separators=["\n## ","\n### ", "\n\n", "\n"]
+    chunk_size=1000, chunk_overlap=200, separators=["\n## ", "\n### ", "\n\n", "\n"]
 )
 chunked_docs = []
 for doc in documents:
@@ -45,7 +46,7 @@ print("   ✓ Embedding-Modell geladen")
 
 # --- Schritt 4: Chroma-Vektor-DB aufbauen ---
 print("Erstelle Vektor-Datenbank...")
-vectordb = Chroma.from_documents(chunked_docs, emb, collection_name="zettelkasten")
+vectordb = Chroma.from_documents(chunked_docs, emb, persist_directory=persist_directory, collection_name="zettelkasten")
 print("   ✓ Vektor-Datenbank erstellt")
 
 # --- Schritt 5: Ollama (Llama 3) initialisieren ---
@@ -53,12 +54,13 @@ print("Verbinde mit Ollama...")
 llm = OllamaLLM(model="llama3.1")
 print("   ✓ Ollama-Verbindung hergestellt")
 
+
 # --- Schritt 6: Abfragefunktion ---
 def frage_zettelkasten(frage: str, k=4):
     print("Suche relevante Informationen...")
     relevante_chunks = vectordb.similarity_search(frage, k=k)
     context = "\n---\n".join([chunk.page_content for chunk in relevante_chunks])
-    prompt = f"""Beantworte die folgende Frage mithilfe dieses Kontexts aus meinem Zettelkasten und gebe die Namen der Dokumente als Quelle an in denen du die Antwort findest:
+    prompt = f"""utze ausschließlich den nachfolgenden Kontext, um die Frage zu beantworten. Gib die zugehörigen Dokumentnamen als Quellen in eckigen Klammern an.
 {context}
 
 Frage: {frage}
@@ -67,13 +69,14 @@ Antwort:"""
     antwort = llm.invoke(prompt)
     return antwort
 
+
 # --- Schritt 7: CLI-Interface ---
 if __name__ == "__main__":
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("Zettelkasten KI ist bereit!")
     print("Stelle jetzt deine Fragen (leere Eingabe zum Beenden)")
-    print("="*50 + "\n")
-    
+    print("=" * 50 + "\n")
+
     while True:
         user_input = input("Frage: ")
         if not user_input.strip():
